@@ -48,6 +48,14 @@
                   </p>
                 </a>
               </li>
+              <li class="nav-item">
+                <a href="{{ route('admin.usermanage') }}" class="nav-link">
+                  <i class="nav-icon bi bi-people-fill"></i>
+                  <p>
+                    User Management
+                  </p>
+                </a>
+              </li>
             </ul>
             <!--end::Sidebar Menu-->
           </nav>

@@ -13,7 +13,7 @@ return new class extends Migration
             $table->string('nisn')->unique();
             $table->string('kelas');
             $table->string('jurusan');
-            $table->boolean('has_voted')->default(false);
+            $table->boolean('status')->default(true);
         });
     }
 
