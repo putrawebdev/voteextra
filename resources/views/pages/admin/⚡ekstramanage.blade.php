@@ -150,22 +150,8 @@ new class extends Component
         ]);
     }
 
-    public function confirmDelete($id)
-    {
-        $ekstra = Ekstrakurikuler::findOrFail($id);
-        
-        $this->deleteId = $id;
-        $this->deleteName = $ekstra->nama;
-        
-        // Dispatch event langsung ke JavaScript
-        $this->dispatch('show-delete-confirmation', [
-            'id' => $id,
-            'name' => $ekstra->nama
-        ]);
-    }
-
-    // Delete data - METHOD YANG DIPANGGIL DARI JAVASCRIPT
-    public function deleteConfirmed($id)
+     // Delete data dengan form submit
+    public function deleteEkstrakurikuler($id)
     {
         try {
             $ekstra = Ekstrakurikuler::findOrFail($id);
@@ -173,11 +159,8 @@ new class extends Component
             
             // Cek apakah ada siswa yang sudah memilih ekstrakurikuler ini
             if ($ekstra->votes()->count() > 0) {
-                session()->flash('swal', [
-                    'icon' => 'error',
-                    'title' => 'Gagal!',
-                    'text' => "Tidak dapat menghapus {$nama} karena sudah ada siswa yang memilih."
-                ]);
+                session()->flash('message', "Tidak dapat menghapus {$nama} karena sudah ada siswa yang memilih.");
+                session()->flash('messageType', 'error');
                 return;
             }
             
@@ -185,18 +168,12 @@ new class extends Component
             
             $this->loadStats();
             
-            session()->flash('swal', [
-                'icon' => 'success',
-                'title' => 'Berhasil!',
-                'text' => "Ekstrakurikuler {$nama} berhasil dihapus."
-            ]);
+            session()->flash('message', "Ekstrakurikuler {$nama} berhasil dihapus.");
+            session()->flash('messageType', 'success');
             
         } catch (\Exception $e) {
-            session()->flash('swal', [
-                'icon' => 'error',
-                'title' => 'Gagal!',
-                'text' => 'Terjadi kesalahan saat menghapus data: ' . $e->getMessage()
-            ]);
+            session()->flash('message', 'Terjadi kesalahan saat menghapus data.');
+            session()->flash('messageType', 'error');
         }
     }
 
@@ -602,11 +579,16 @@ new class extends Component
                                                 <i class="bi bi-pencil"></i>
                                             </button>
                                             @if($ekstra->votes_count == 0)
-                                                <button class="btn btn-outline-danger" 
-                                                        wire:click="confirmDelete({{ $ekstra->id }})"
-                                                        title="Hapus">
-                                                    <i class="bi bi-trash"></i>
-                                                </button>
+                                                <form wire:submit.prevent="deleteEkstrakurikuler({{ $ekstra->id }})" 
+                                                    onsubmit="return confirm('Apakah Anda yakin ingin menghapus {{ $ekstra->nama }}?')"
+                                                    style="display: inline;">
+                                                    @csrf
+                                                    <button type="submit" 
+                                                            class="btn btn-outline-danger" 
+                                                            title="Hapus">
+                                                        <i class="bi bi-trash"></i>
+                                                    </button>
+                                                </form>
                                             @else
                                                 <button class="btn btn-outline-secondary" 
                                                         title="Tidak dapat dihapus karena sudah ada pemilih"
