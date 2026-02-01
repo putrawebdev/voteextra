@@ -17,15 +17,16 @@ new class extends Component
     public $formType = 'create'; // 'create' or 'edit'
     public $userId = null;
 
-    public $nis = '';
-    public $nama = '';
+    public $name = '';
+    public $email = '';
+    public $nisn = '';
     public $kelas = '';
     public $jurusan = '';
-    public $email = '';
     public $password = '';
     public $password_confirmation = '';
     public $role = 'siswa';
-    public $status = false;
+    public $status = true;
+    public $has_voted = false;
 
     // Properties untuk search dan filter
     public $search = '';
@@ -33,6 +34,7 @@ new class extends Component
     public $filterJurusan = '';
     public $filterRole = '';
     public $filterStatus = '';
+    public $filterVoted = '';
 
     // Properties untuk statistik
     public $stats = [];
@@ -55,36 +57,38 @@ new class extends Component
         'RPL' => 'Rekayasa Perangkat Lunak',
         'MM' => 'Multimedia',
         'AK' => 'Akuntansi',
+        'UMUM' => 'Umum', // Untuk admin/staff
     ];
 
     protected function rules()
     {
         $rules = [
-            'nis' => 'required|string|max:20',
-            'nama' => 'required|string|max:255',
+            'name' => 'required|string|max:255',
+            'nisn' => 'required|string|max:20',
             'kelas' => 'required|string|max:20',
             'jurusan' => 'required|string|max:50',
             'email' => 'nullable|email|max:255',
             'role' => 'required|in:siswa,admin',
             'status' => 'required|boolean',
+            'has_voted' => 'boolean',
         ];
 
-        // Validasi NIS unik untuk create
+        // Validasi NISN unik untuk create
         if ($this->formType === 'create') {
-            $rules['nis'] = [
+            $rules['nisn'] = [
                 'required',
                 'string',
                 'max:20',
-                Rule::unique('users', 'nis')
+                Rule::unique('users', 'nisn')
             ];
             $rules['password'] = 'required|string|min:8|confirmed';
         } else {
-            // Untuk edit, NIS unik kecuali untuk user yang sedang diedit
-            $rules['nis'] = [
+            // Untuk edit, NISN unik kecuali untuk user yang sedang diedit
+            $rules['nisn'] = [
                 'required',
                 'string',
                 'max:20',
-                Rule::unique('users', 'nis')->ignore($this->userId)
+                Rule::unique('users', 'nisn')->ignore($this->userId)
             ];
             
             // Password optional untuk edit
@@ -93,7 +97,7 @@ new class extends Component
             }
         }
 
-        // Validasi email unik
+        // Validasi email unik jika diisi
         if ($this->email) {
             $rules['email'] = [
                 'nullable',
@@ -107,9 +111,9 @@ new class extends Component
     }
 
     protected $messages = [
-        'nis.required' => 'NIS wajib diisi.',
-        'nis.unique' => 'NIS sudah terdaftar.',
-        'nama.required' => 'Nama siswa wajib diisi.',
+        'name.required' => 'Nama wajib diisi.',
+        'nisn.required' => 'NISN wajib diisi.',
+        'nisn.unique' => 'NISN sudah terdaftar.',
         'kelas.required' => 'Kelas wajib diisi.',
         'jurusan.required' => 'Jurusan wajib dipilih.',
         'email.email' => 'Format email tidak valid.',
@@ -134,7 +138,8 @@ new class extends Component
             'admin' => User::where('role', 'admin')->count(),
             'active' => User::where('status', true)->count(),
             'inactive' => User::where('status', false)->count(),
-            'hasVoted' => User::has('vote')->count(),
+            'hasVoted' => User::where('has_voted', true)->count(),
+            'notVoted' => User::where('has_voted', false)->count(),
         ];
     }
 
@@ -142,13 +147,14 @@ new class extends Component
     private function resetForm()
     {
         $this->reset([
-            'nis', 'nama', 'kelas', 'jurusan', 'email',
-            'password', 'password_confirmation', 'role', 'status',
+            'name', 'email', 'nisn', 'kelas', 'jurusan',
+            'password', 'password_confirmation', 'role', 'status', 'has_voted',
             'showForm', 'formType', 'userId'
         ]);
         $this->resetErrorBag();
         $this->role = 'siswa';
         $this->status = true;
+        $this->has_voted = false;
     }
 
     // Show create form
@@ -166,13 +172,14 @@ new class extends Component
         
         $user = User::findOrFail($id);
         $this->userId = $user->id;
-        $this->nis = $user->nis;
-        $this->nama = $user->nama;
+        $this->name = $user->name;
+        $this->email = $user->email;
+        $this->nisn = $user->nisn;
         $this->kelas = $user->kelas;
         $this->jurusan = $user->jurusan;
-        $this->email = $user->email;
         $this->role = $user->role;
-        $this->status = $user->status;
+        $this->status = (bool) $user->status;
+        $this->has_voted = (bool) $user->has_voted;
         
         $this->formType = 'edit';
         $this->showForm = true;
@@ -184,13 +191,14 @@ new class extends Component
         $this->validate();
 
         $data = [
-            'nis' => $this->nis,
-            'nama' => $this->nama,
+            'name' => $this->name,
+            'email' => $this->email,
+            'nisn' => $this->nisn,
             'kelas' => $this->kelas,
             'jurusan' => $this->jurusan,
-            'email' => $this->email,
             'role' => $this->role,
             'status' => $this->status,
+            'has_voted' => $this->has_voted,
         ];
 
         // Jika password diisi (untuk create atau edit dengan password baru)
@@ -199,6 +207,11 @@ new class extends Component
         }
 
         if ($this->formType === 'create') {
+            // Untuk create, pastikan email_verified_at diisi jika ada email
+            if ($this->email) {
+                $data['email_verified_at'] = now();
+            }
+            
             User::create($data);
             $message = 'User berhasil ditambahkan!';
         } else {
@@ -213,6 +226,7 @@ new class extends Component
 
         $this->resetForm();
         $this->loadStats();
+        
         $this->dispatch('swal', [
             'icon' => 'success',
             'title' => 'Berhasil!',
@@ -231,7 +245,7 @@ new class extends Component
         $this->dispatch('swal', [
             'icon' => 'success',
             'title' => 'Berhasil!',
-            'text' => "Password {$user->nama} telah direset ke default (password123)"
+            'text' => "Password {$user->name} telah direset ke default (password123)"
         ]);
     }
 
@@ -247,7 +261,23 @@ new class extends Component
         $this->dispatch('swal', [
             'icon' => 'success',
             'title' => 'Berhasil!',
-            'text' => "Status {$user->nama} telah {$status}"
+            'text' => "Status {$user->name} telah {$status}"
+        ]);
+    }
+
+    // Toggle voting status
+    public function toggleVoteStatus($id)
+    {
+        $user = User::findOrFail($id);
+        $user->update(['has_voted' => !$user->has_voted]);
+        
+        $status = $user->has_voted ? 'ditandai sudah voting' : 'ditandai belum voting';
+        $this->loadStats();
+        
+        $this->dispatch('swal', [
+            'icon' => 'success',
+            'title' => 'Berhasil!',
+            'text' => "Status voting {$user->name} telah {$status}"
         ]);
     }
 
@@ -257,18 +287,18 @@ new class extends Component
         $user = User::findOrFail($id);
         
         // Cek apakah user sudah voting
-        if ($user->hasVoted()) {
+        if ($user->has_voted) {
             $this->dispatch('swal', [
                 'icon' => 'error',
                 'title' => 'Gagal!',
-                'text' => "Tidak dapat menghapus {$user->nama} karena sudah melakukan voting."
+                'text' => "Tidak dapat menghapus {$user->name} karena sudah melakukan voting."
             ]);
             return;
         }
         
         $this->dispatch('show-delete-confirmation', [
             'id' => $id,
-            'name' => $user->nama,
+            'name' => $user->name,
             'type' => 'user'
         ]);
     }
@@ -278,14 +308,14 @@ new class extends Component
     {
         try {
             $user = User::findOrFail($id);
-            $nama = $user->nama;
+            $name = $user->name;
             
             // Double check untuk voting
-            if ($user->hasVoted()) {
+            if ($user->has_voted) {
                 session()->flash('swal', [
                     'icon' => 'error',
                     'title' => 'Gagal!',
-                    'text' => "Tidak dapat menghapus {$nama} karena sudah melakukan voting."
+                    'text' => "Tidak dapat menghapus {$name} karena sudah melakukan voting."
                 ]);
                 return;
             }
@@ -297,7 +327,7 @@ new class extends Component
             session()->flash('swal', [
                 'icon' => 'success',
                 'title' => 'Berhasil!',
-                'text' => "User {$nama} berhasil dihapus."
+                'text' => "User {$name} berhasil dihapus."
             ]);
             
         } catch (\Exception $e) {
@@ -319,11 +349,10 @@ new class extends Component
     public function getUsersProperty()
     {
         return User::query()
-            ->with('vote')
             ->when($this->search, function ($query) {
                 $query->where(function ($q) {
-                    $q->where('nis', 'like', '%' . $this->search . '%')
-                      ->orWhere('nama', 'like', '%' . $this->search . '%')
+                    $q->where('nisn', 'like', '%' . $this->search . '%')
+                      ->orWhere('name', 'like', '%' . $this->search . '%')
                       ->orWhere('email', 'like', '%' . $this->search . '%')
                       ->orWhere('kelas', 'like', '%' . $this->search . '%');
                 });
@@ -340,8 +369,11 @@ new class extends Component
             ->when($this->filterStatus !== '', function ($query) {
                 $query->where('status', $this->filterStatus == '1');
             })
+            ->when($this->filterVoted !== '', function ($query) {
+                $query->where('has_voted', $this->filterVoted == '1');
+            })
             ->orderBy('kelas')
-            ->orderBy('nama')
+            ->orderBy('name')
             ->paginate(15);
     }
 
@@ -385,6 +417,16 @@ new class extends Component
             'icon' => 'info',
             'title' => 'Info',
             'text' => 'Fitur import akan segera tersedia.'
+        ]);
+    }
+
+    // Bulk actions
+    public function bulkResetPassword()
+    {
+        $this->dispatch('swal', [
+            'icon' => 'info',
+            'title' => 'Info',
+            'text' => 'Fitur reset password massal akan segera tersedia.'
         ]);
     }
 
@@ -525,14 +567,14 @@ new class extends Component
                         </span>
                         <input type="text" 
                                class="form-control" 
-                               placeholder="Cari NIS, nama, atau email..." 
+                               placeholder="Cari NISN, nama, atau email..." 
                                wire:model.live.debounce.300ms="search">
                     </div>
                 </div>
                 <div class="col-md-2">
                     <select class="form-select" wire:model.live="filterKelas">
                         <option value="">Semua Kelas</option>
-                        {{-- @foreach($ as $key => $value)
+                        {{-- @foreach($filteredKelasOptions as $key => $value)
                             <option value="{{ $key }}">{{ $value }}</option>
                         @endforeach --}}
                     </select>
@@ -567,6 +609,22 @@ new class extends Component
                     </div>
                 </div>
             </div>
+            
+            <!-- Filter tambahan -->
+            <div class="row mt-2">
+                <div class="col-md-2">
+                    <select class="form-select" wire:model.live="filterVoted">
+                        <option value="">Status Voting</option>
+                        <option value="1">Sudah Voting</option>
+                        <option value="0">Belum Voting</option>
+                    </select>
+                </div>
+                <div class="col-md-10 d-flex justify-content-end">
+                    <button class="btn btn-outline-danger btn-sm" wire:click="bulkResetPassword">
+                        <i class="bi bi-key"></i> Reset Password Massal
+                    </button>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -586,50 +644,22 @@ new class extends Component
                         <form wire:submit.prevent="save">
                             <div class="row">
                                 <div class="col-md-6 mb-3">
-                                    <label class="form-label">NIS <span class="text-danger">*</span></label>
-                                    <input type="text" 
-                                           class="form-control @error('nis') is-invalid @enderror" 
-                                           wire:model="nis"
-                                           placeholder="Contoh: 20230001"
-                                           autofocus>
-                                    @error('nis') <div class="invalid-feedback">{{ $message }}</div> @enderror
-                                </div>
-
-                                <div class="col-md-6 mb-3">
                                     <label class="form-label">Nama Lengkap <span class="text-danger">*</span></label>
                                     <input type="text" 
-                                           class="form-control @error('nama') is-invalid @enderror" 
-                                           wire:model="nama"
-                                           placeholder="Nama lengkap siswa">
-                                    @error('nama') <div class="invalid-feedback">{{ $message }}</div> @enderror
-                                </div>
-                            </div>
-
-                            <div class="row">
-                                <div class="col-md-6 mb-3">
-                                    <label class="form-label">Kelas <span class="text-danger">*</span></label>
-                                    <select class="form-select @error('kelas') is-invalid @enderror" wire:model="kelas">
-                                        <option value="">Pilih Kelas</option>
-                                        @foreach($kelasList as $tingkat => $kelasArr)
-                                            <optgroup label="Kelas {{ $tingkat }}">
-                                                @foreach($kelasArr as $k)
-                                                    <option value="{{ $k }}">{{ $k }}</option>
-                                                @endforeach
-                                            </optgroup>
-                                        @endforeach
-                                    </select>
-                                    @error('kelas') <div class="invalid-feedback">{{ $message }}</div> @enderror
+                                           class="form-control @error('name') is-invalid @enderror" 
+                                           wire:model="name"
+                                           placeholder="Nama lengkap"
+                                           autofocus>
+                                    @error('name') <div class="invalid-feedback">{{ $message }}</div> @enderror
                                 </div>
 
                                 <div class="col-md-6 mb-3">
-                                    <label class="form-label">Jurusan <span class="text-danger">*</span></label>
-                                    <select class="form-select @error('jurusan') is-invalid @enderror" wire:model="jurusan">
-                                        <option value="">Pilih Jurusan</option>
-                                        @foreach($jurusanList as $key => $value)
-                                            <option value="{{ $key }}">{{ $key }} - {{ $value }}</option>
-                                        @endforeach
-                                    </select>
-                                    @error('jurusan') <div class="invalid-feedback">{{ $message }}</div> @enderror
+                                    <label class="form-label">NISN <span class="text-danger">*</span></label>
+                                    <input type="text" 
+                                           class="form-control @error('nisn') is-invalid @enderror" 
+                                           wire:model="nisn"
+                                           placeholder="Nomor Induk Siswa Nasional">
+                                    @error('nisn') <div class="invalid-feedback">{{ $message }}</div> @enderror
                                 </div>
                             </div>
 
@@ -664,6 +694,35 @@ new class extends Component
 
                             <div class="row">
                                 <div class="col-md-6 mb-3">
+                                    <label class="form-label">Kelas <span class="text-danger">*</span></label>
+                                    <select class="form-select @error('kelas') is-invalid @enderror" wire:model="kelas">
+                                        <option value="">Pilih Kelas</option>
+                                        @foreach($kelasList as $tingkat => $kelasArr)
+                                            <optgroup label="Kelas {{ $tingkat }}">
+                                                @foreach($kelasArr as $k)
+                                                    <option value="{{ $k }}">{{ $k }}</option>
+                                                @endforeach
+                                            </optgroup>
+                                        @endforeach
+                                        <option value="STAFF">STAFF</option>
+                                    </select>
+                                    @error('kelas') <div class="invalid-feedback">{{ $message }}</div> @enderror
+                                </div>
+
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label">Jurusan <span class="text-danger">*</span></label>
+                                    <select class="form-select @error('jurusan') is-invalid @enderror" wire:model="jurusan">
+                                        <option value="">Pilih Jurusan</option>
+                                        @foreach($jurusanList as $key => $value)
+                                            <option value="{{ $key }}">{{ $key }} - {{ $value }}</option>
+                                        @endforeach
+                                    </select>
+                                    @error('jurusan') <div class="invalid-feedback">{{ $message }}</div> @enderror
+                                </div>
+                            </div>
+
+                            <div class="row">
+                                <div class="col-md-6 mb-3">
                                     <label class="form-label">
                                         Password {{ $formType === 'create' ? '<span class="text-danger">*</span>' : '' }}
                                     </label>
@@ -684,6 +743,19 @@ new class extends Component
                                 </div>
                             </div>
 
+                            <div class="row">
+                                <div class="col-md-6 mb-3">
+                                    <div class="form-check form-switch">
+                                        <input class="form-check-input" type="checkbox" role="switch" 
+                                               id="has_voted" wire:model="has_voted">
+                                        <label class="form-check-label" for="has_voted">
+                                            Sudah Voting?
+                                        </label>
+                                    </div>
+                                    <small class="text-muted">Centang jika user sudah melakukan voting</small>
+                                </div>
+                            </div>
+
                             <div class="alert alert-info mt-3">
                                 <div class="d-flex">
                                     <i class="bi bi-info-circle me-2"></i>
@@ -693,6 +765,7 @@ new class extends Component
                                             <li>Password default untuk reset: <code>password123</code></li>
                                             <li>User dengan role "Admin" memiliki akses penuh</li>
                                             <li>User nonaktif tidak dapat login</li>
+                                            <li>NISN harus unik untuk setiap user</li>
                                         </ul>
                                     </div>
                                 </div>
@@ -731,13 +804,13 @@ new class extends Component
                         <thead class="table-light">
                             <tr>
                                 <th width="50">#</th>
-                                <th>NIS</th>
+                                <th>NISN</th>
                                 <th>Nama</th>
                                 <th>Kelas</th>
                                 <th>Jurusan</th>
                                 <th>Status</th>
                                 <th>Voting</th>
-                                <th width="150" class="text-center">Aksi</th>
+                                <th width="180" class="text-center">Aksi</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -745,11 +818,11 @@ new class extends Component
                                 <tr>
                                     <td>{{ $users->firstItem() + $index }}</td>
                                     <td>
-                                        <span class="fw-semibold">{{ $user->nis }}</span>
+                                        <span class="fw-semibold">{{ $user->nisn }}</span>
                                     </td>
                                     <td>
                                         <div>
-                                            <strong class="d-block">{{ $user->nama }}</strong>
+                                            <strong class="d-block">{{ $user->name }}</strong>
                                             <small class="text-muted">{{ $user->email ?? 'Tidak ada email' }}</small>
                                         </div>
                                     </td>
@@ -775,7 +848,7 @@ new class extends Component
                                         </div>
                                     </td>
                                     <td>
-                                        @if($user->hasVoted())
+                                        @if($user->has_voted)
                                             <span class="badge bg-success">
                                                 <i class="bi bi-check2-all me-1"></i>Sudah
                                             </span>
@@ -794,17 +867,23 @@ new class extends Component
                                             </button>
                                             <button class="btn btn-outline-warning" 
                                                     wire:click="resetPassword({{ $user->id }})"
-                                                    onclick="return confirm('Reset password {{ $user->nama }} ke default?')"
+                                                    onclick="return confirm('Reset password {{ $user->name }} ke default?')"
                                                     title="Reset Password">
                                                 <i class="bi bi-key"></i>
                                             </button>
                                             <button class="btn btn-outline-{{ $user->status ? 'danger' : 'success' }}" 
                                                     wire:click="toggleStatus({{ $user->id }})"
-                                                    onclick="return confirm('{{ $user->status ? 'Nonaktifkan' : 'Aktifkan' }} {{ $user->nama }}?')"
+                                                    onclick="return confirm('{{ $user->status ? 'Nonaktifkan' : 'Aktifkan' }} {{ $user->name }}?')"
                                                     title="{{ $user->status ? 'Nonaktifkan' : 'Aktifkan' }}">
                                                 <i class="bi bi-{{ $user->status ? 'toggle-off' : 'toggle-on' }}"></i>
                                             </button>
-                                            @if(!$user->hasVoted())
+                                            <button class="btn btn-outline-{{ $user->has_voted ? 'secondary' : 'info' }}" 
+                                                    wire:click="toggleVoteStatus({{ $user->id }})"
+                                                    onclick="return confirm('{{ $user->has_voted ? 'Tandai belum voting' : 'Tandai sudah voting' }} {{ $user->name }}?')"
+                                                    title="{{ $user->has_voted ? 'Tandai belum voting' : 'Tandai sudah voting' }}">
+                                                <i class="bi bi-{{ $user->has_voted ? 'x-circle' : 'check-circle' }}"></i>
+                                            </button>
+                                            @if(!$user->has_voted)
                                                 <button class="btn btn-outline-danger" 
                                                         wire:click="confirmDelete({{ $user->id }})"
                                                         title="Hapus">
@@ -852,7 +931,7 @@ new class extends Component
                 </div>
                 <div class="card-body">
                     <div class="row">
-                        <div class="col-md-4">
+                        <div class="col-md-3">
                             <div class="d-flex align-items-center mb-3">
                                 <span class="badge bg-success me-2">
                                     <i class="bi bi-check-circle"></i> Aktif
@@ -863,7 +942,7 @@ new class extends Component
                                 </div>
                             </div>
                         </div>
-                        <div class="col-md-4">
+                        <div class="col-md-3">
                             <div class="d-flex align-items-center mb-3">
                                 <span class="badge bg-danger me-2">
                                     <i class="bi bi-x-circle"></i> Nonaktif
@@ -874,7 +953,7 @@ new class extends Component
                                 </div>
                             </div>
                         </div>
-                        <div class="col-md-4">
+                        <div class="col-md-3">
                             <div class="d-flex align-items-center mb-3">
                                 <span class="badge bg-warning me-2">
                                     <i class="bi bi-shield-check"></i> Admin
@@ -885,21 +964,7 @@ new class extends Component
                                 </div>
                             </div>
                         </div>
-                    </div>
-                    
-                    <div class="row">
-                        <div class="col-md-4">
-                            <div class="d-flex align-items-center mb-3">
-                                <span class="badge bg-secondary me-2">
-                                    <i class="bi bi-person-check"></i> Siswa
-                                </span>
-                                <div>
-                                    <small class="fw-semibold">Role Siswa</small>
-                                    <p class="text-muted small mb-0">Hanya dapat voting</p>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="col-md-4">
+                        <div class="col-md-3">
                             <div class="d-flex align-items-center mb-3">
                                 <span class="badge bg-success me-2">
                                     <i class="bi bi-check2-all"></i> Sudah Voting
@@ -907,17 +972,6 @@ new class extends Component
                                 <div>
                                     <small class="fw-semibold">Sudah Voting</small>
                                     <p class="text-muted small mb-0">Telah memilih ekstrakurikuler</p>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="col-md-4">
-                            <div class="d-flex align-items-center mb-3">
-                                <span class="badge bg-secondary me-2">
-                                    <i class="bi bi-clock"></i> Belum Voting
-                                </span>
-                                <div>
-                                    <small class="fw-semibold">Belum Voting</small>
-                                    <p class="text-muted small mb-0">Belum memilih ekstrakurikuler</p>
                                 </div>
                             </div>
                         </div>
@@ -929,10 +983,10 @@ new class extends Component
                             <div>
                                 <h6 class="mb-1">Tips & Panduan</h6>
                                 <ul class="mb-0 small">
-                                    <li>User yang sudah melakukan voting <strong>tidak dapat dihapus</strong>.</li>
+                                    <li>User yang sudah voting <strong>tidak dapat dihapus</strong>.</li>
                                     <li>Gunakan fitur reset password untuk mengembalikan password ke default.</li>
                                     <li>Nonaktifkan user jika sudah tidak membutuhkan akses.</li>
-                                    <li>Pastikan NIS unik untuk setiap user.</li>
+                                    <li>Pastikan NISN unik untuk setiap user.</li>
                                     <li>Gunakan fitur import untuk menambahkan data dalam jumlah banyak.</li>
                                 </ul>
                             </div>
@@ -990,7 +1044,6 @@ new class extends Component
                 preConfirm: () => {
                     return new Promise((resolve) => {
                         @this.call('deleteConfirmed', id);
-                        // Beri waktu untuk proses
                         setTimeout(() => {
                             resolve();
                         }, 1000);
@@ -999,18 +1052,29 @@ new class extends Component
                 allowOutsideClick: () => !Swal.isLoading()
             }).then((result) => {
                 if (result.isConfirmed) {
-                    // Refresh data setelah konfirmasi
                     @this.dispatch('refreshData');
                 }
             });
         });
 
-        // Auto-focus ke input NIS ketika modal dibuka
+        // SweetAlert dari Livewire dispatch
+        @this.on('swal', (event) => {
+            const data = event[0];
+            Swal.fire({
+                icon: data.icon,
+                title: data.title,
+                text: data.text,
+                timer: 3000,
+                showConfirmButton: false
+            });
+        });
+
+        // Auto-focus ke input name ketika modal dibuka
         @this.on('showFormChanged', (value) => {
             if (value) {
                 setTimeout(() => {
-                    const nisInput = document.querySelector('input[wire\\:model="nis"]');
-                    if (nisInput) nisInput.focus();
+                    const nameInput = document.querySelector('input[wire\\:model="name"]');
+                    if (nameInput) nameInput.focus();
                 }, 100);
             }
         });

@@ -11,14 +11,15 @@ class User extends Authenticatable
     use HasFactory, Notifiable;
 
     protected $fillable = [
-        'nis',
-        'nama',
+        'name',
+        'email',
+        'nisn',
         'kelas',
         'jurusan',
-        'email',
         'password',
         'role',
-        'status'
+        'status',
+        'has_voted'
     ];
 
     protected $hidden = [
@@ -29,15 +30,6 @@ class User extends Authenticatable
     protected $casts = [
         'email_verified_at' => 'datetime',
         'status' => 'boolean',
+        'has_voted' => 'boolean',
     ];
-
-    public function vote()
-    {
-        return $this->hasOne(Vote::class);
-    }
-
-    public function hasVoted()
-    {
-        return $this->vote()->exists();
-    }
 }

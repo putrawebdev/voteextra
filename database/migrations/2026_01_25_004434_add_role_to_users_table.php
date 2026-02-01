@@ -14,6 +14,7 @@ return new class extends Migration
             $table->string('kelas');
             $table->string('jurusan');
             $table->boolean('status')->default(true);
+            $table->boolean('has_voted')->default(false);
         });
     }
 
