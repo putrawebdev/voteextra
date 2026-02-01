@@ -13,6 +13,7 @@ new class extends Component
     protected $paginationTheme = 'bootstrap';
 
     // Properties untuk form
+    public $showDeleteModal = false;  
     public $showForm = false;
     public $formType = 'create'; // 'create' or 'edit'
     public $userId = null;
@@ -42,21 +43,20 @@ new class extends Component
     // Properties untuk delete
     public $deleteId = null;
     public $deleteName = '';
+    public $deleteNisn = '';
+    public $deleteClass = '';
 
     // List kelas dan jurusan
     public $kelasList = [
-        '10' => ['X IPA', 'X IPS', 'X TKJ', 'X RPL', 'X MM', 'X AK'],
-        '11' => ['XI IPA', 'XI IPS', 'XI TKJ', 'XI RPL', 'XI MM', 'XI AK'],
-        '12' => ['XII IPA', 'XII IPS', 'XII TKJ', 'XII RPL', 'XII MM', 'XII AK'],
+        '10' => ['X PPLG', 'X DKV', 'X Kuliner'],
+        '11' => ['XI PPLG', 'XI DKV', 'XI Kuliner'],
+        '12' => ['XII PPLG', 'XII DKV', 'XII Kuliner'],
     ];
 
     public $jurusanList = [
-        'IPA' => 'Ilmu Pengetahuan Alam',
-        'IPS' => 'Ilmu Pengetahuan Sosial',
-        'TKJ' => 'Teknik Komputer dan Jaringan',
-        'RPL' => 'Rekayasa Perangkat Lunak',
-        'MM' => 'Multimedia',
-        'AK' => 'Akuntansi',
+        'PPLG' => 'Pengembangan Perangkat Lunak dan Gim',
+        'DKV' => 'Desain Komunikasi Visual',
+        'Kuliner' => 'Kuliner',
         'UMUM' => 'Umum', // Untuk admin/staff
     ];
 
@@ -281,63 +281,66 @@ new class extends Component
         ]);
     }
 
-    // Confirm delete
+    
+    // CONFIRM DELETE
     public function confirmDelete($id)
     {
         $user = User::findOrFail($id);
         
-        // Cek apakah user sudah voting
         if ($user->has_voted) {
-            $this->dispatch('swal', [
-                'icon' => 'error',
-                'title' => 'Gagal!',
-                'text' => "Tidak dapat menghapus {$user->name} karena sudah melakukan voting."
-            ]);
+            session()->flash('error', "Tidak dapat menghapus {$user->name} karena sudah melakukan voting.");
             return;
         }
         
-        $this->dispatch('show-delete-confirmation', [
-            'id' => $id,
-            'name' => $user->name,
-            'type' => 'user'
-        ]);
+        $this->deleteId = $user->id;
+        $this->deleteName = $user->name;
+        $this->deleteNisn = $user->nisn;
+        $this->deleteClass = $user->kelas;
+        
+        $this->showDeleteModal = true;
     }
 
-    // Delete data
-    public function deleteConfirmed($id)
+    // DELETE USER
+    public function deleteUser()
     {
+        if (!$this->deleteId) {
+            session()->flash('error', 'ID user tidak valid.');
+            return;
+        }
+
         try {
-            $user = User::findOrFail($id);
-            $name = $user->name;
+            $user = User::findOrFail($this->deleteId);
             
-            // Double check untuk voting
             if ($user->has_voted) {
-                session()->flash('swal', [
-                    'icon' => 'error',
-                    'title' => 'Gagal!',
-                    'text' => "Tidak dapat menghapus {$name} karena sudah melakukan voting."
-                ]);
+                session()->flash('error', "Tidak dapat menghapus {$user->name} karena sudah melakukan voting.");
+                $this->closeDeleteModal();
                 return;
             }
             
+            $userName = $user->name;
             $user->delete();
             
             $this->loadStats();
+            $this->closeDeleteModal();
             
-            session()->flash('swal', [
-                'icon' => 'success',
-                'title' => 'Berhasil!',
-                'text' => "User {$name} berhasil dihapus."
-            ]);
+            session()->flash('success', "User {$userName} berhasil dihapus.");
             
         } catch (\Exception $e) {
-            session()->flash('swal', [
-                'icon' => 'error',
-                'title' => 'Gagal!',
-                'text' => 'Terjadi kesalahan saat menghapus data: ' . $e->getMessage()
-            ]);
+            session()->flash('error', 'Terjadi kesalahan saat menghapus data: ' . $e->getMessage());
+            $this->closeDeleteModal();
         }
     }
+
+    // CLOSE DELETE MODAL
+    public function closeDeleteModal()
+    {
+        $this->showDeleteModal = false;
+        $this->deleteId = null;
+        $this->deleteName = '';
+        $this->deleteNisn = '';
+        $this->deleteClass = '';
+    }
+
 
     // Cancel form
     public function cancel()
@@ -469,6 +472,121 @@ new class extends Component
         </div>
     </div>
 
+    <!-- Delete Confirmation Modal -->
+    @if($showDeleteModal)
+        <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header bg-danger text-white">
+                        <h5 class="modal-title">
+                            <i class="bi bi-exclamation-triangle me-2"></i>Konfirmasi Hapus
+                        </h5>
+                        <button type="button" class="btn-close btn-close-white" wire:click="closeDeleteModal"></button>
+                    </div>
+                    
+                    <!-- Form untuk delete -->
+                    <form wire:submit.prevent="deleteUser">
+                        <div class="modal-body">
+                            <div class="alert alert-danger">
+                                <div class="d-flex">
+                                    <i class="bi bi-exclamation-octagon-fill me-3 fs-4"></i>
+                                    <div>
+                                        <h5 class="alert-heading">PERHATIAN!</h5>
+                                        <p class="mb-1">Data yang dihapus tidak dapat dikembalikan.</p>
+                                        <p class="mb-0">Pastikan data yang akan dihapus benar.</p>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="card border-danger mb-3">
+                                <div class="card-body">
+                                    <h6 class="card-subtitle mb-2 text-danger">Data yang akan dihapus:</h6>
+                                    <table class="table table-sm table-bordered">
+                                        <tbody>
+                                            <tr>
+                                                <td width="30%"><strong>Nama</strong></td>
+                                                <td>{{ $deleteName }}</td>
+                                            </tr>
+                                            <tr>
+                                                <td><strong>NISN</strong></td>
+                                                <td>{{ $deleteNisn }}</td>
+                                            </tr>
+                                            <tr>
+                                                <td><strong>Kelas</strong></td>
+                                                <td>{{ $deleteClass }}</td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                            
+                            <div class="form-check mb-3">
+                                <input class="form-check-input" type="checkbox" id="confirmDelete" required>
+                                <label class="form-check-label text-danger fw-semibold" for="confirmDelete">
+                                    <i class="bi bi-check-circle"></i> Saya yakin ingin menghapus data ini
+                                </label>
+                            </div>
+                        </div>
+                        
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" wire:click="closeDeleteModal">
+                                <i class="bi bi-x-circle"></i> Batal
+                            </button>
+                            <button type="submit" class="btn btn-danger">
+                                <i class="bi bi-trash"></i> Hapus Data
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    @endif
+    <!-- Flash Messages -->
+    @if(session()->has('success'))
+        <div class="position-fixed top-0 end-0 p-3" style="z-index: 1050">
+            <div class="toast show" role="alert" aria-live="assertive" aria-atomic="true">
+                <div class="toast-header bg-success text-white">
+                    <i class="bi bi-check-circle me-2"></i>
+                    <strong class="me-auto">Berhasil!</strong>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="toast"></button>
+                </div>
+                <div class="toast-body">
+                    {{ session('success') }}
+                </div>
+            </div>
+        </div>
+    @endif
+
+    @if(session()->has('error'))
+        <div class="position-fixed top-0 end-0 p-3" style="z-index: 1050">
+            <div class="toast show" role="alert" aria-live="assertive" aria-atomic="true">
+                <div class="toast-header bg-danger text-white">
+                    <i class="bi bi-exclamation-triangle me-2"></i>
+                    <strong class="me-auto">Error!</strong>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="toast"></button>
+                </div>
+                <div class="toast-body">
+                    {{ session('error') }}
+                </div>
+            </div>
+        </div>
+    @endif
+
+    @if(session()->has('info'))
+        <div class="position-fixed top-0 end-0 p-3" style="z-index: 1050">
+            <div class="toast show" role="alert" aria-live="assertive" aria-atomic="true">
+                <div class="toast-header bg-info text-white">
+                    <i class="bi bi-info-circle me-2"></i>
+                    <strong class="me-auto">Info</strong>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="toast"></button>
+                </div>
+                <div class="toast-body">
+                    {{ session('info') }}
+                </div>
+            </div>
+        </div>
+    @endif
+
     <!-- Stats -->
     <div class="row mb-4 p-3">
         <div class="col-md-2 mb-3">
@@ -574,9 +692,13 @@ new class extends Component
                 <div class="col-md-2">
                     <select class="form-select" wire:model.live="filterKelas">
                         <option value="">Semua Kelas</option>
-                        {{-- @foreach($filteredKelasOptions as $key => $value)
-                            <option value="{{ $key }}">{{ $value }}</option>
-                        @endforeach --}}
+                        @foreach($kelasList as $tingkat => $kelasArray)
+                            <optgroup label="Kelas {{ $tingkat }}">
+                                @foreach($kelasArray as $kelas)
+                                    <option value="{{ $kelas }}">{{ $kelas }}</option>
+                                @endforeach
+                            </optgroup>
+                        @endforeach
                     </select>
                 </div>
                 <div class="col-md-2">
@@ -884,11 +1006,16 @@ new class extends Component
                                                 <i class="bi bi-{{ $user->has_voted ? 'x-circle' : 'check-circle' }}"></i>
                                             </button>
                                             @if(!$user->has_voted)
-                                                <button class="btn btn-outline-danger" 
-                                                        wire:click="confirmDelete({{ $user->id }})"
-                                                        title="Hapus">
-                                                    <i class="bi bi-trash"></i>
-                                                </button>
+                                                <form method="POST" wire:submit.prevent="confirmDelete({{ $user->id }})" 
+                                                      onsubmit="return confirm('Apakah Anda yakin ingin menghapus {{ $user->name }}?')">
+                                                    @csrf
+                                                    @method('DELETE')
+                                                    <button type="submit" 
+                                                            class="btn btn-outline-danger" 
+                                                            title="Hapus">
+                                                        <i class="bi bi-trash"></i>
+                                                    </button>
+                                                </form>
                                             @else
                                                 <button class="btn btn-outline-secondary" 
                                                         title="Tidak dapat dihapus karena sudah voting"
