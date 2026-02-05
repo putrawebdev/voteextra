@@ -403,26 +403,6 @@ new class extends Component
         ]);
     }
 
-    // Export data
-    public function exportData()
-    {
-        $this->dispatch('swal', [
-            'icon' => 'info',
-            'title' => 'Info',
-            'text' => 'Fitur export akan segera tersedia.'
-        ]);
-    }
-
-    // Import data
-    public function importData()
-    {
-        $this->dispatch('swal', [
-            'icon' => 'info',
-            'title' => 'Info',
-            'text' => 'Fitur import akan segera tersedia.'
-        ]);
-    }
-
     // Bulk actions
     public function bulkResetPassword()
     {

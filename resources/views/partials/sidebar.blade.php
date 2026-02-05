@@ -11,7 +11,7 @@
             />
             <!--end::Brand Image-->
             <!--begin::Brand Text-->
-            <span class="brand-text fw-light">AdminLTE 4</span>
+            <span class="brand-text fw-light">Vote MSC</span>
             <!--end::Brand Text-->
           </a>
           <!--end::Brand Link-->
@@ -29,33 +29,26 @@
               data-accordion="false"
               id="navigation"
             >
-              {{-- Dashboard --}}
-              <li class="nav-item">
-                <a href="{{ route('admin.dashboard') }}" class="nav-link">
-                  <i class="nav-icon bi bi-speedometer"></i>
-                  <p>
-                    Dashboard
-                  </p>
-                </a>
-              </li>
-              {{-- Admin Menu --}}
-              <li class="nav-header">Admin Menu</li>
-              <li class="nav-item">
-                <a href="{{ route('admin.ekstramanage') }}" class="nav-link">
-                  <i class="nav-icon bi bi-box-seam-fill"></i>
-                  <p>
-                    Ekstrakurikuler Management
-                  </p>
-                </a>
-              </li>
-              <li class="nav-item">
-                <a href="{{ route('admin.usermanage') }}" class="nav-link">
-                  <i class="nav-icon bi bi-people-fill"></i>
-                  <p>
-                    User Management
-                  </p>
-                </a>
-              </li>
+              @if(Auth::user()->role === 'admin')
+                  <li class="nav-item">
+                      <a class="nav-link {{ request()->routeIs('admin.dashboard') ? 'active' : '' }}" 
+                          href="{{ route('admin.dashboard') }}">
+                          <i class="bi bi-speedometer2 me-1"></i>Dashboard
+                      </a>
+                  </li>
+                  <li class="nav-item">
+                      <a class="nav-link {{ request()->routeIs('admin.usermanage') ? 'active' : '' }}" 
+                          href="{{ route('admin.usermanage') }}">
+                          <i class="bi bi-people me-1"></i>Kelola User
+                      </a>
+                  </li>
+                  <li class="nav-item">
+                      <a class="nav-link {{ request()->routeIs('admin.ekstramanage') ? 'active' : '' }}" 
+                          href="{{ route('admin.ekstramanage') }}">
+                          <i class="bi bi-trophy me-1"></i>Kelola Ekstra
+                      </a>
+                  </li>
+              @endif
             </ul>
             <!--end::Sidebar Menu-->
           </nav>

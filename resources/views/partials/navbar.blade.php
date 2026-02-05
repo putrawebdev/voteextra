@@ -40,8 +40,8 @@
                     alt="User Image"
                   />
                   <p>
-                    Daka Agung Putra - Web Developer
-                    <small>Member since Nov. 2023</small>
+                    {{ Auth::user()->name }} - Web Developer
+                    <small>{{ Auth::user()->role }}</small>
                   </p>
                 </li>
                 <!--end::User Image-->
@@ -59,7 +59,13 @@
                 <!--begin::Menu Footer-->
                 <li class="user-footer">
                   <a href="#" class="btn btn-default btn-flat">Profile</a>
-                  <a href="#" class="btn btn-default btn-flat float-end">Sign out</a>
+                  <form method="POST" action="{{ route('logout') }}">
+                      @csrf
+                      <button type="submit" class="dropdown-item text-danger">
+                          <i class="bi bi-box-arrow-right me-2"></i>Logout
+                      </button>
+                  </form>
+
                 </li>
                 <!--end::Menu Footer-->
               </ul>
